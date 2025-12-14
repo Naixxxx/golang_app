@@ -30,7 +30,7 @@ jobs:
           name: app-binary
           path: app
 
-  run-tests:
+  run-tests-linux:
     runs-on: ubuntu-latest
     needs: build-and-get-dependencies
     steps:
@@ -42,6 +42,36 @@ jobs:
         with:
           go-version: "1.23"
           
+      - name: Run tests
+        run: go test -v ./...
+
+  run-tests-macos:
+    runs-on: macos-14
+    needs: build-and-get-dependencies
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.23"
+
+      - name: Run tests
+        run: go test -v ./...
+
+  run-tests-windows:
+    runs-on: windows-latest
+    needs: build-and-get-dependencies
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.23"
+
       - name: Run tests
         run: go test -v ./...
 
