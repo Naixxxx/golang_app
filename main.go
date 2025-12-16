@@ -16,5 +16,6 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-func useless() {
+func useless() *string {
+	return nil
 }
