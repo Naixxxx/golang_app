@@ -92,23 +92,28 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: run-tests-linux
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: run-tests-windows
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          name: app-binary
+          go-version: "1.21"
 
-      - name: Make binary executable
-        run: chmod +x app
+      - name: Build binary for deploy
+        run: |
+          mkdir public
+          go build -o public/app
 
-      - name: Copy binary to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          source: "app"
-          target: ${{ secrets.APP_DIR }}
+          path: public
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+
