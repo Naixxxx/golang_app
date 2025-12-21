@@ -1,18 +1,11 @@
 name: Golang CI
 
 on:
-  push:
-    branches: ["main"]
   pull_request:
     branches: ["main"]
     
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 jobs:
-  build-and-get-dependencies:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,97 +21,68 @@ jobs:
 
       - name: Build binary
         run: go build -v -o app .
+          
+      - name: Generate SBOM using cycloneDX
+        run: |
+          go mod tidy
+          go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          cyclonedx-gomod mod -output bom.json -json
 
-      - name: Build artifact
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: bom.json
+          retention-days: 7
+          
+      - name: Upload app binary as artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-binary
           path: app
-
-  run-tests-linux:
-    runs-on: ubuntu-latest
-    needs: build-and-get-dependencies
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        
-      - name: Setup Golang
-        uses: actions/setup-go@v3
-        with:
-          go-version: "1.23"
+          retention-days: 7
           
-      - name: Run tests
-        run: go test -v ./...
-
-  run-tests-macos-intel:
-    runs-on: macos-15-intel
-    needs: build-and-get-dependencies
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup Golang
-        uses: actions/setup-go@v3
-        with:
-          go-version: "1.23"
-
-      - name: Run tests
-        run: go test -v ./...
-
-  run-tests-macos-silicon:
-    runs-on: macos-14
-    needs: build-and-get-dependencies
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup Golang
-        uses: actions/setup-go@v3
-        with:
-          go-version: "1.23"
-
-      - name: Run tests
-        run: go test -v ./...
-
-  run-tests-windows:
-    runs-on: windows-latest
-    needs: build-and-get-dependencies
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup Golang
-        uses: actions/setup-go@v3
-        with:
-          go-version: "1.23"
-
-      - name: Run tests
-        run: go test -v ./...
-
-  deploy:
+  security:
     runs-on: ubuntu-latest
-    needs: run-tests-windows
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
+    needs: build
+    env:
+      DTRACK_URL: ${{ secrets.DTRACK_URL }}
+      DTRACK_API_KEY: ${{ secrets.DTRACK_API_KEY }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
-        with:
-          go-version: "1.23"
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Build binary for deploy
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-cyclonedx
+
+      - name: Run Dependency-Check
         run: |
-          mkdir public
-          go build -o public/app
+          mkdir -p dc-data depcheck-report
+          docker run --rm \
+            -v "${PWD}:/src" \
+            -v "${PWD}/dc-data:/usr/share/dependency-check/data" \
+            -v "${PWD}/depcheck-report:/report" \
+            owasp/dependency-check:latest \
+              --project "${GITHUB_REPOSITORY}" \
+              --scan /src \
+              --format "HTML,JSON" \
+              --out /report \
+              --disableKnownExploited || true
 
-      - name: Upload to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload Dependency-Check report
+        uses: actions/upload-artifact@v4
         with:
-          path: public
+          name: dependency-check-report
+          path: depcheck-report
+          retention-days: 7
 
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
-
+      - name: Upload SBOM to Dependency Track
+        run: |
+          curl -X POST "${DTRACK_URL}/api/v1/bom" \
+            -H "X-Api-Key: ${DTRACK_API_KEY}" \
+            -F "projectName=${{ github.repository }}" \
+            -F "autoCreate=true" \
+            -F "bom=@bom.json"
