@@ -68,7 +68,7 @@ jobs:
             owasp/dependency-check:latest \
               --project "${GITHUB_REPOSITORY}" \
               --scan /src \
-              --format "HTML,JSON" \
+              --format "HTML" \
               --out /report \
               --disableKnownExploited || true
 
