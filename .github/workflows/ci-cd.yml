@@ -60,15 +60,14 @@ jobs:
 
       - name: Run Dependency-Check
         run: |
-          mkdir -p dc-data depcheck-report
+          mkdir -p depcheck-report
           docker run --rm \
             -v "${PWD}:/src" \
-            -v "${PWD}/dc-data:/usr/share/dependency-check/data" \
             -v "${PWD}/depcheck-report:/report" \
             owasp/dependency-check:latest \
               --project "${GITHUB_REPOSITORY}" \
               --scan /src \
-              --format "HTML" \
+              --format "HTML,JSON" \
               --out /report \
               --disableKnownExploited || true
 
