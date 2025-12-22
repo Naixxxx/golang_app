@@ -63,13 +63,14 @@ jobs:
           mkdir -p depcheck-report
           docker run --rm \
             -v "${PWD}:/src" \
-            -v "${PWD}/depcheck-report:/report" \
             owasp/dependency-check:latest \
-              --project "${GITHUB_REPOSITORY}" \
+              --project "golang_app" \
               --scan /src \
-              --format "HTML" \
-              --out /report \
+              --format HTML \
+              --out /src/depcheck-report \
               --disableKnownExploited || true
+          echo "Files in depcheck-report:"
+          ls -R depcheck-report || true
 
       - name: Upload Dependency-Check report
         uses: actions/upload-artifact@v4
