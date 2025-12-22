@@ -69,8 +69,6 @@ jobs:
               --format HTML \
               --out /src/depcheck-report \
               --disableKnownExploited || true
-          echo "Files in depcheck-report:"
-          ls -R depcheck-report || true
 
       - name: Upload Dependency-Check report
         uses: actions/upload-artifact@v4
